@@ -4,6 +4,7 @@
 #include <cinttypes>
 
 #define DEBUG_OUT printf
+const uint64_t _WORD_MASK_ = 0xFFFFFFFFFFFFFFFF;
 
 void printListUI64(uint64_t *s, int len)
 {
@@ -12,6 +13,13 @@ void printListUI64(uint64_t *s, int len)
     {
         printf("0x%" PRIx64 "\n", s[i]);
     }
+}
+
+uint64_t _rotl(const uint64_t value, int shift)
+{
+    if ((shift & _WORD_MASK_) == 0)
+        return value;
+    return ((value << shift) & _WORD_MASK_) | (value >> 64 - shift);
 }
 
 uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
@@ -30,7 +38,7 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
     DEBUG_OUT("%" PRIX64 "\n", v0);
     DEBUG_OUT("%" PRIX64 "\n", v1);
     DEBUG_OUT("%" PRIX64 "\n", v2);
-    DEBUG_OUT("%" PRIX64 "\n", v3);
+    DEBUG_OUT("%" PRIX64 "\n---\n", v3);
 
     //2
     int b = mlen;
@@ -60,7 +68,7 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
             i++;
             m[i] = 0;
         }
-        DEBUG_OUT("1:%d %d 0x%" PRIX64 " 0x%" PRIX64 "\n", bit, j, m[i], t);
+        // DEBUG_OUT("1:%d %d 0x%" PRIX64 " 0x%" PRIX64 "\n", bit, j, m[i], t);
     }
 
     m[w - 1] |= ((uint64_t)(b % 256) << 56);
@@ -76,85 +84,104 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
     for (i = 0; i < w; i++)
     {
         //The m[i] ’s are iteratively processed by doing v3 ⊕= m[i]
-        v3 = v3 ^ m[i];
+        v3 ^= m[i];
         DEBUG_OUT("Xor mi to v3:\n");
         DEBUG_OUT("%" PRIX64 "\n", v0);
         DEBUG_OUT("%" PRIX64 "\n", v1);
         DEBUG_OUT("%" PRIX64 "\n", v2);
-        DEBUG_OUT("%" PRIX64 "\n", v3);
+        DEBUG_OUT("%" PRIX64 "\n---\n", v3);
 
         //c iterations of SipRound
         for (j = 0; j < c; j++)
         {
-            sai o day
-            v0 = v0 + v1;
-            v2 = v2 + v3;
+            v0 += v1;
+            v0 &= _WORD_MASK_;
+            v2 += v3;
+            v2 &= _WORD_MASK_;
 
-            v1 = v1 << 13;
-            v3 = v3 << 16;
+            v1 = _rotl(v1, 13);
+            v3 = _rotl(v3, 16);
 
-            v1 = v1 ^ v0;
-            v3 = v3 ^ v2;
+            v1 ^= v0;
+            v3 ^= v2;
 
-            v0 = v0 << 32;
+            v0 = _rotl(v0, 32);
 
-            v2 = v2 + v1;
-            v0 = v0 + v3;
+            v2 += v1;
+            v2 &= _WORD_MASK_;
+            v0 += v3;
+            v0 &= _WORD_MASK_;
 
-            v1 = v1 << 17;
-            v3 = v3 << 21;
+            v1 = _rotl(v1, 17);
+            v3 = _rotl(v3, 21);
 
-            v1 = v1 ^ v2;
-            v3 = v3 ^ v0;
+            v1 ^= v2;
+            v3 ^= v0;
 
-            v2 = v2 << 32;
+            v2 = _rotl(v2, 32);
         }
 
-        DEBUG_OUT("After 2 Sip:\n");
+        DEBUG_OUT("After 2 Sips:\n");
         DEBUG_OUT("%" PRIX64 "\n", v0);
         DEBUG_OUT("%" PRIX64 "\n", v1);
         DEBUG_OUT("%" PRIX64 "\n", v2);
-        DEBUG_OUT("%" PRIX64 "\n", v3);
+        DEBUG_OUT("%" PRIX64 "\n---\n", v3);
 
         //followed by v0 ⊕= m[i]
 
-        v0 = v0 ^ m[i];
+        v0 ^= m[i];
+
         DEBUG_OUT("Xor mi to v0:\n");
         DEBUG_OUT("%" PRIX64 "\n", v0);
         DEBUG_OUT("%" PRIX64 "\n", v1);
         DEBUG_OUT("%" PRIX64 "\n", v2);
-        DEBUG_OUT("%" PRIX64 "\n", v3);
+        DEBUG_OUT("%" PRIX64 "\n---\n", v3);
     }
 
     //Finalization: After all the message words have been processed,
     //  SipHash-c-d xors the constant ff to the state:
     v2 = v2 ^ 0xFF;
+    DEBUG_OUT("Xor v2 to 0xff:\n");
+    DEBUG_OUT("%" PRIX64 "\n", v0);
+    DEBUG_OUT("%" PRIX64 "\n", v1);
+    DEBUG_OUT("%" PRIX64 "\n", v2);
+    DEBUG_OUT("%" PRIX64 "\n---\n", v3);
 
     //d iterations of SipRound
     for (j = 0; j < d; j++)
     {
-        v0 = v0 + v1;
-        v2 = v2 + v3;
+        v0 += v1;
+        v0 &= _WORD_MASK_;
+        v2 += v3;
+        v2 &= _WORD_MASK_;
 
-        v1 = v1 << 13;
-        v3 = v3 << 16;
+        v1 = _rotl(v1, 13);
+        v3 = _rotl(v3, 16);
 
-        v1 = v1 ^ v0;
-        v3 = v3 ^ v2;
+        v1 ^= v0;
+        v3 ^= v2;
 
-        v0 = v0 << 32;
+        v0 = _rotl(v0, 32);
 
-        v2 = v2 + v1;
-        v0 = v0 + v3;
+        v2 += v1;
+        v2 &= _WORD_MASK_;
+        v0 += v3;
+        v0 &= _WORD_MASK_;
 
-        v1 = v1 << 17;
-        v3 = v3 << 21;
+        v1 = _rotl(v1, 17);
+        v3 = _rotl(v3, 21);
 
-        v1 = v1 ^ v2;
-        v3 = v3 ^ v0;
+        v1 ^= v2;
+        v3 ^= v0;
 
-        v2 = v2 << 32;
+        v2 = _rotl(v2, 32);
     }
+
+    DEBUG_OUT("After 4 Sips:\n");
+    DEBUG_OUT("%" PRIX64 "\n", v0);
+    DEBUG_OUT("%" PRIX64 "\n", v1);
+    DEBUG_OUT("%" PRIX64 "\n", v2);
+    DEBUG_OUT("%" PRIX64 "\n---\n", v3);
 
     uint64_t r = v0 ^ v1 ^ v2 ^ v3;
     return r;
@@ -170,8 +197,8 @@ int main()
     uint64_t r;
 
     //r = siphash_2_4(k, m1, 2);
-    // r = siphash_2_4(k, m2, 8);
-    r = siphash_2_4(k3, m3, 15);
+    r = siphash_2_4(k, m2, 8);
+    // r = siphash_2_4(k3, m3, 15);
     DEBUG_OUT("SipHash 2 4 = 0x%" PRIX64 "\n", r);
     return 0;
 }
