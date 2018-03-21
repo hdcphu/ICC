@@ -16,11 +16,21 @@ void printListUI64(uint64_t *s, int len)
 
 uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
 {
+    DEBUG_OUT("The keys:\n");
+    DEBUG_OUT("k0 %" PRIX64 "\n", k[0]);
+    DEBUG_OUT("k1 %" PRIX64 "\n", k[1]);
+
     //1
     uint64_t v0 = k[0] ^ 0x736f6d6570736575;
     uint64_t v1 = k[1] ^ 0x646f72616e646f6d;
     uint64_t v2 = k[0] ^ 0x6c7967656e657261;
     uint64_t v3 = k[1] ^ 0x7465646279746573;
+
+    DEBUG_OUT("Xor to the 4 constants:\n");
+    DEBUG_OUT("%" PRIX64 "\n", v0);
+    DEBUG_OUT("%" PRIX64 "\n", v1);
+    DEBUG_OUT("%" PRIX64 "\n", v2);
+    DEBUG_OUT("%" PRIX64 "\n", v3);
 
     //2
     int b = mlen;
@@ -30,17 +40,17 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
 
     uint64_t m[w];
     uint64_t t;
-    
+
     //compress
-    
+
     int j;
     int i = 0;
     int bit = 0;
-    
+
     m[0] = 0;
     for (j = 0; j < b; j++)
     {
-        
+
         uint64_t t = ((uint64_t)m_origin[j] << (bit * 8));
         m[i] |= t;
         bit++;
@@ -52,10 +62,9 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
         }
         DEBUG_OUT("1:%d %d 0x%" PRIX64 " 0x%" PRIX64 "\n", bit, j, m[i], t);
     }
-    
 
-    m[w-1] |= ((uint64_t)(b % 256) << 56);
-    
+    m[w - 1] |= ((uint64_t)(b % 256) << 56);
+
     DEBUG_OUT("Compressed message:\n");
     printListUI64(m, w);
     DEBUG_OUT("= %d words\n", w);
@@ -68,29 +77,53 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
     {
         //The m[i] ’s are iteratively processed by doing v3 ⊕= m[i]
         v3 = v3 ^ m[i];
+        DEBUG_OUT("Xor mi to v3:\n");
+        DEBUG_OUT("%" PRIX64 "\n", v0);
+        DEBUG_OUT("%" PRIX64 "\n", v1);
+        DEBUG_OUT("%" PRIX64 "\n", v2);
+        DEBUG_OUT("%" PRIX64 "\n", v3);
 
         //c iterations of SipRound
         for (j = 0; j < c; j++)
         {
+            sai o day
             v0 = v0 + v1;
-            v1 = v1 << 13;
-            v1 = v1 ^ v0;
-            v0 = v0 << 32;
-            v2 = v2 + v1;
-            v1 = v1 << 17;
-            v1 = v1 ^ v2;
-            v2 = v2 << 32;
             v2 = v2 + v3;
+
+            v1 = v1 << 13;
             v3 = v3 << 16;
+
+            v1 = v1 ^ v0;
             v3 = v3 ^ v2;
+
+            v0 = v0 << 32;
+
+            v2 = v2 + v1;
             v0 = v0 + v3;
+
+            v1 = v1 << 17;
             v3 = v3 << 21;
+
+            v1 = v1 ^ v2;
             v3 = v3 ^ v0;
+
+            v2 = v2 << 32;
         }
+
+        DEBUG_OUT("After 2 Sip:\n");
+        DEBUG_OUT("%" PRIX64 "\n", v0);
+        DEBUG_OUT("%" PRIX64 "\n", v1);
+        DEBUG_OUT("%" PRIX64 "\n", v2);
+        DEBUG_OUT("%" PRIX64 "\n", v3);
 
         //followed by v0 ⊕= m[i]
 
         v0 = v0 ^ m[i];
+        DEBUG_OUT("Xor mi to v0:\n");
+        DEBUG_OUT("%" PRIX64 "\n", v0);
+        DEBUG_OUT("%" PRIX64 "\n", v1);
+        DEBUG_OUT("%" PRIX64 "\n", v2);
+        DEBUG_OUT("%" PRIX64 "\n", v3);
     }
 
     //Finalization: After all the message words have been processed,
@@ -101,33 +134,44 @@ uint64_t siphash_2_4(uint64_t *k, uint8_t *m_origin, unsigned int mlen)
     for (j = 0; j < d; j++)
     {
         v0 = v0 + v1;
-        v1 = v1 << 13;
-        v1 = v1 ^ v0;
-        v0 = v0 << 32;
-        v2 = v2 + v1;
-        v1 = v1 << 17;
-        v1 = v1 ^ v2;
-        v2 = v2 << 32;
         v2 = v2 + v3;
+
+        v1 = v1 << 13;
         v3 = v3 << 16;
+
+        v1 = v1 ^ v0;
         v3 = v3 ^ v2;
+
+        v0 = v0 << 32;
+
+        v2 = v2 + v1;
         v0 = v0 + v3;
+
+        v1 = v1 << 17;
         v3 = v3 << 21;
+
+        v1 = v1 ^ v2;
         v3 = v3 ^ v0;
+
+        v2 = v2 << 32;
     }
 
-    return (uint64_t)v0 ^ v1 ^ v2 ^ v3;
+    uint64_t r = v0 ^ v1 ^ v2 ^ v3;
+    return r;
 }
 
 int main()
 {
     uint64_t k[2] = {0, 0};
+    uint64_t k3[2] = {0x0706050403020100, 0x0f0e0d0c0b0a0908};
     uint8_t m1[8] = {0xab, 0x12};
     uint8_t m2[8] = {0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7};
+    uint8_t m3[15] = {0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe};
     uint64_t r;
 
     //r = siphash_2_4(k, m1, 2);
-    r = siphash_2_4(k, m2, 8);
+    // r = siphash_2_4(k, m2, 8);
+    r = siphash_2_4(k3, m3, 15);
     DEBUG_OUT("SipHash 2 4 = 0x%" PRIX64 "\n", r);
     return 0;
 }
